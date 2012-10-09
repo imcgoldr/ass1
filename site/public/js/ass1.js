@@ -48,12 +48,35 @@ bb.init = function() {
       },1)
     }
   }
-
+  
+  var myRouter = Backbone.Router.extend({
+    routes : {
+	  '': 'doMain',
+	  'settings' : 'showSettings'
+	},
+	doMain : function() {
+		console.log('myRouter:doMain')
+		$('div#settings').hide();
+		$('div#main').show();
+	},
+	showSettings : function() {
+		console.log('myRouter:doMain')
+		$('div#main').hide();
+		$('div#settings').show();
+	}
+  });
+  // As per bb documentation need to create a router and call history.start()
+  bb.router = new myRouter()
+  Backbone.history.start()
+  
   bb.view.Head = Backbone.View.extend(_.extend({
 	events: {
+	  'tap #gosettings': 'showSettings',
 	  'tap #add': 'addItem',
 	  'tap #cancel': 'cancelItem',
+	  // touchend added for Android
 	  'touchend #save': 'saveItem',
+	  // click for now so that desktop works, but needs to be tested for Apple (also applies to other view events)
 	  'click #save': 'saveItem',
 	  'keyup #text': 'activateSave'
     },
@@ -66,7 +89,8 @@ bb.init = function() {
 
       self.setElement("div[data-role='header']")
 	  self.elements = {
-	    title: self.$el.find('h1'),
+	    settings: self.$el.find('#gosettings'),
+	    title: self.$el.find('#maintitle'),
 		add: self.$el.find('#add'),
 		cancel: self.$el.find('#cancel')
       }
@@ -76,6 +100,7 @@ bb.init = function() {
 	  self.elements.text = self.$el.find('#text')
 	  self.elements.save = self.$el.find('#save')
 
+	  self.elements.settings.hide()
 	  self.elements.add.hide()
 	  self.elements.cancel.hide()
 
@@ -94,14 +119,16 @@ bb.init = function() {
 	  var self = this
 	  
 	  var loaded = 'loaded' == app.model.state.get('header_state')
-	  self.elements.title.html( self.tm.heading( {title: loaded ? 'To Do List: '+self.items.length+' Items' : 'To Do List: Loading...'} ))
+	  self.elements.title.html( self.tm.heading( {title: loaded ? 'To Do: '+self.items.length+' Items' : 'To Do: Loading...'} ))
 	  // Handle display of Header items (inc new item).  Header view renders when Items collection is changed.
 	  if (loaded) {
 	    if (!saveon && !swipeon) {
+	      self.elements.settings.show()
 	      self.elements.add.show()
 	      self.elements.cancel.hide()
 		}
 		else{
+	      self.elements.settings.hide()
 	      self.elements.add.hide()
 	      self.elements.cancel.show()
 		}
@@ -119,6 +146,15 @@ bb.init = function() {
 	  console.log('view.Head:render:end')
 	},
 
+    showSettings: function() {
+	  console.log('view.Head:showSettings:begin')
+	  var self = this
+
+	  bb.router.navigate('settings', {trigger: true});
+	  console.log('view.Head:showSettings:end')
+	  return false
+	},
+	
     addItem: function() {
 	  console.log('view.Head:addItem:begin')
 	  var self = this
@@ -128,7 +164,7 @@ bb.init = function() {
       self.activateSave()
 	  console.log('view.Head:addItem:end')
 	  return false
-	  },
+	},
 	
     cancelItem: function() {
 	  console.log('view.Head:cancelItem:begin')
@@ -193,6 +229,14 @@ bb.view.Item = Backbone.View.extend(_.extend({
 	  var html = self.tm.item( self.model.toJSON() )
 	  self.$el.append(html)
 	  app.markitem(self.$el, self.model.attributes.check)
+	  
+	  // Need to manually set the theme of each <li> as it is added, based on user setting.
+	  var oldTheme = 'a'
+	  var newTheme = app.model.settings.getTheme()
+	  app.updateTheme(self.$el, oldTheme, newTheme)
+	  self.$el.find('*').each(function() {
+		app.updateTheme($(this), oldTheme, newTheme);
+	  });
   	  console.log('view.Item:render:end')
 	},
 	
@@ -297,6 +341,85 @@ bb.view.Item = Backbone.View.extend(_.extend({
   
   scrollContent))
   
+  bb.view.Settings = Backbone.View.extend(_.extend({
+	events: {
+	  'tap #cancelsettings': 'cancelSettings',
+	  'change #theme' : 'themeChanged'
+    },
+    initialize: function(settings) {
+	  console.log('view.Settings:initialize:begin')
+      var self = this
+      _.bindAll(self)
+
+	  self.settings = settings
+
+	  self.setElement("div[id='settings']")
+	  self.elements = {
+	    title: self.$el.find('#settingstitle'),
+		theme: self.$el.find('#theme')
+	  }
+	  
+	  self.settings.on('change:userTheme', self.renderTheme)
+	  
+	  self.tm = {
+        heading: _.template( self.elements.title.html() )
+      }
+	  
+	  console.log('view.Settings:initialize:end')
+    },
+	
+	render: function() {
+	  console.log('view.Settings:render:begin')
+	  var self = this
+	  
+	  self.elements.title.html( self.tm.heading( {title: 'Settings'} ))
+	  self.elements.theme.val(self.settings.getTheme()).change()
+	  self.renderTheme(self.settings)
+	  console.log('view.Settings:render:end')
+	},
+
+	cancelSettings: function() {
+	  console.log('view.Settings:cancelSettings:begin')
+	  var self = this
+	  
+	  bb.router.navigate('', {trigger: true});
+	  console.log('view.Settings:cancelSettings:end')
+	  return false
+    },
+
+	themeChanged: function() {
+	  console.log('view.Settings:themeChanged:begin')
+	  var self = this
+	  self.settings.setTheme(self.elements.theme.val())
+	  console.log('view.Settings:themeChanged:end')
+	  return false
+    },
+
+	renderTheme: function(settings) {
+	  console.log('view.Settings:renderTheme:begin')
+	  var self = this
+	  // Update the data-theme of all elements with the new value, this was problematic
+	  // First I tried straight jquery but although the attributes update correctly the theme wouldn't 'take'
+	  // Then I tried setting the data-theme attributes via the usual bb elements but this had the same result as direct jquery assignment
+	  // Finally I found a solution on github that seems to work: https://gist.github.com/1117707
+	  self.setElement("div[id='settings']")
+	  var oldTheme = self.$el.attr('data-theme') || 'a';
+	  var newTheme = settings.get('userTheme')
+	  app.updateTheme(self.el, oldTheme, newTheme);
+	  self.$el.find('*').each(function() {
+		app.updateTheme($(this), oldTheme, newTheme);
+	  });
+	  self.setElement("div[id='main']")
+	  app.updateTheme(self.el, oldTheme, newTheme);
+	  self.$el.find('*').each(function() {
+		app.updateTheme($(this), oldTheme, newTheme);
+	  });
+
+	  console.log('view.Settings:renderTheme:end')
+	  return false
+    }
+  }))
+
   bb.model.Item = Backbone.Model.extend(_.extend({
     defaults: {
 	  id: '',
@@ -355,6 +478,37 @@ bb.view.Item = Backbone.View.extend(_.extend({
     defaults: { header_state:'loading'	}
   }))
 
+  bb.model.Settings = Backbone.Model.extend(_.extend({
+    defaults: {
+	  userTheme: 'a'
+	},
+	
+	initialize: function(){
+	  console.log('model.Settings:initialize:begin')
+	  var self = this
+	  _.bindAll(self)
+	  var savedTheme = localStorage.getItem('userTheme') || 'a'
+	  self.setTheme(savedTheme)
+	  console.log('model.Settings:initialize:end')
+	},
+	
+	setTheme: function(newTheme){
+	  console.log('model.Settings:setTheme:begin')
+	  var self = this
+	  self.set({userTheme: newTheme})
+	  localStorage.setItem('userTheme',newTheme);
+	  console.log('model.Settings:setTheme:end')
+	},
+
+	getTheme: function(){
+	  console.log('model.Settings:getTheme:begin')
+	  var self = this
+	  
+	  console.log('model.Settings:getTheme:end')
+	  return (self.get('userTheme'))
+	}
+  }))
+
 }
 
 app.init_browser = function() {
@@ -366,7 +520,30 @@ app.init_browser = function() {
 app.markitem = function( item, done ) {
     item.find('span.check').html( done ? '&#10003;' : '&nbsp;' )
     item.find('span.text').css({'text-decoration': done ? 'line-through' : 'none' })
+}
+
+// This function obtained from https://gist.github.com/1117707 as I couldn't get theme switch to work any other way
+app.updateTheme = function element_theme_refresh( element, oldTheme, newTheme ) {
+  // Update the page's new data theme
+  if( $(element).attr('data-theme') ) {
+	$(element).attr('data-theme', newTheme);
   }
+  if ( $(element).attr('class') ) {
+	// Theme classes end in "-[a-z]$", so match that
+	var classPattern = new RegExp('-' + oldTheme + '$');
+	newTheme = '-' + newTheme;
+
+	var classes =  $(element).attr('class').split(' ');
+
+	for( var key in classes ) {
+		if( classPattern.test( classes[key] ) ) {
+			classes[key] = classes[key].replace( classPattern, newTheme );
+		}
+	}
+
+	$(element).attr('class', classes.join(' '));
+  }
+}
 
 app.init = function() {
   console.log('start init')
@@ -376,12 +553,16 @@ app.init = function() {
   
   app.model.items = new bb.model.Items()
   app.model.state = new bb.model.State()
+  app.model.settings = new bb.model.Settings()
   
   app.view.head = new bb.view.Head(app.model.items)
   app.view.head.render()
   
   app.view.list = new bb.view.List(app.model.items)
   
+  app.view.settings = new bb.view.Settings(app.model.settings)
+  app.view.settings.render()
+
   app.model.items.fetch({
     success: function() {
 	  setTimeout( 
@@ -392,7 +573,9 @@ app.init = function() {
 		500)
 	}
   })
-
+  
+  
+  
   console.log('end init')
 }
 

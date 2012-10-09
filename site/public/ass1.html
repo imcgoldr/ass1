@@ -20,30 +20,47 @@
 </head> 
 <body> 
 
-<div id="main" data-role="page">
-
-  <div data-role="header" data-position="fixed">
-    <h1>{{-title}}</h1>
+<div id="main" class="page" data-role="page" data-theme="a">
+  <div data-role="header" data-position="fixed" data-theme="a">
+	<a id="gosettings" data-icon="gear" class="ui-btn-left">Settings</a>
+    <h1 id="maintitle">{{-title}}</h1>
 	<a id="add" data-icon="plus" class="ui-btn-right">Add</a>
 	<a id="cancel" data-icon="delete" class="ui-btn-right">Cancel</a>
   </div>
-
   <div data-role="content">
     <div id="newitem">
       <input type="text" id="text" placeholder="Enter To Do item"/>
       <a id="save" data-role="button" data-inline="true" data-icon='plus'>Save</a>
     </div>	
     <ul id="list" data-role="listview">
-      <li id="{{-id}}" class="item">
+      <li id="{{-id}}" class="item" data-theme="a">
 		<span class="check">{{check}}</span>
         <span class="text">{{-text}}</span>
 		<span class="delete">{{-del}}</span>
       </li>
     </ul>
-
   </div>
-
 </div>
-<script src="http://192.168.1.35:8080/target/target-script-min.js#anonymous"></script>
+
+<div id="settings" data-role="page" data-theme="a">
+  <div data-role="header" data-position="fixed" data-theme="a">
+    <h1 id="settingstitle">{{-title}}</h1>
+	<a id="cancelsettings" data-icon="back" class="ui-btn-right">Back</a>
+  </div>
+  <div data-role="content" id="userSettings">
+    <div data-role="fieldcontain">
+      <label for="theme">Select Theme:</label>
+      <select id="theme" inline="true">
+	    <option value="a">Theme A</option>
+	    <option value="b">Theme B</option>
+	    <option value="c">Theme C</option>
+	    <option value="d">Theme D</option>
+	    <option value="e">Theme E</option>
+      </ul>
+	</div>
+  </div>
+</div>
+<!-- <script src="http://192.168.1.35:8080/target/target-script-min.js#anonymous"></script> -->
+
 </body>
 </html>
