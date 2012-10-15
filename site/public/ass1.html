@@ -20,7 +20,22 @@
 </head> 
 <body> 
 
-<div id="main" class="page" data-role="page" data-theme="a">
+<div id="welcome" data-role="page" data-theme="a">
+  <div data-role="header" data-position="fixed" data-theme="a">
+    <h1 id="welcometitle">{{-title}}</h1>
+	<a id="login" data-icon="check" class="ui-btn-right">Login</a>
+  </div>
+  <div data-role="content" id="userDetails>
+    <div data-role="fieldcontain">
+      <label for="user">User:</label>
+      <input type="text" id="user" maxlength="30"/>
+      <label for="pw">Password:</label>
+      <input type="password" id="pw" maxlength="30"/>
+    </div>	
+  </div>
+</div>
+
+<div id="main" data-role="page" data-theme="a">
   <div data-role="header" data-position="fixed" data-theme="a">
 	<a id="gosettings" data-icon="gear" class="ui-btn-left">Settings</a>
 	<a id="back" data-icon="back" class="ui-btn-left">Back</a>
@@ -34,7 +49,7 @@
       <a id="save" data-role="button" data-inline="true" data-icon='plus'>Save</a>
     </div>	
     <ul id="list" data-role="listview">
-      <li id="{{-id}}" class="item" data-theme="a">
+      <li id="{{-id}}" class="item ui-li ui-li-static ui-body-a" data-theme="a">
 		<span class="check">{{check}}</span>
         <span class="text">{{-text}}</span>
 		<span class="delete">Delete</span>
@@ -58,10 +73,11 @@
 	    <option value="c">Theme C</option>
 	    <option value="d">Theme D</option>
 	    <option value="e">Theme E</option>
-      </ul>
+      </select>
 	</div>
   </div>
 </div>
+
 <!-- <script src="http://192.168.1.35:8080/target/target-script-min.js#anonymous"></script> -->
 
 </body>

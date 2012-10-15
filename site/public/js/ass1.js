@@ -63,18 +63,27 @@ bb.init = function() {
   
   var myRouter = Backbone.Router.extend({
     routes : {
-	  '': 'doMain',
-	  'settings' : 'showSettings'
+	  '': 'welcome',
+	  'settings' : 'showSettings',
+	  'main': 'showList'
 	},
-	doMain : function() {
+	showList : function() {
 		console.log('myRouter:doMain')
 		$('div#settings').hide();
+		$('div#welcome').hide();
 		$('div#main').show();
 	},
 	showSettings : function() {
-		console.log('myRouter:doMain')
+		console.log('myRouter:showSettings')
 		$('div#main').hide();
+		$('div#welcome').hide();
 		$('div#settings').show();
+	},
+	welcome : function() {
+		console.log('myRouter:main')
+		$('div#main').hide();
+		$('div#settings').hide();
+		$('div#welcome').show();
 	}
   });
   // As per bb documentation need to create a router and call history.start()
@@ -497,6 +506,45 @@ bb.init = function() {
     }
   }))
 
+  bb.view.Welcome = Backbone.View.extend(_.extend({
+	events: {
+	  'tap #login': 'login'
+    },
+    initialize: function() {
+	  console.log('view.Welcome:initialize:begin')
+      var self = this
+      _.bindAll(self)
+
+	  self.setElement("div[id='welcome']")
+	  self.elements = {
+	    title: self.$el.find('#welcometitle'),
+		user: self.$el.find('#user'),
+		pw: self.$el.find('#pw'),
+	  }
+	  self.tm = {
+        heading: _.template( self.elements.title.html() )
+      }
+	  console.log('view.Welcome:initialize:end')
+    },
+	
+	render: function() {
+	  console.log('view.Welcome:render:begin')
+	  var self = this
+	  
+	  self.elements.title.html( self.tm.heading( {title: 'Welcome'} ))
+	  console.log('view.Welcome:render:end')
+	},
+
+	login: function() {
+	  console.log('view.Welcome:login:begin')
+	  var self = this
+	  
+	  bb.router.navigate('main', {trigger: true});
+	  console.log('view.Welcome:login:end')
+	  return false
+    }
+  }))
+
   bb.model.Item = Backbone.Model.extend(_.extend({
     defaults: {
 	  id: '',
@@ -643,6 +691,9 @@ app.init = function() {
   app.model.state = new bb.model.State()
   app.model.settings = new bb.model.Settings()
   
+  app.view.welcome = new bb.view.Welcome()
+  app.view.welcome.render()
+
   app.view.head = new bb.view.Head(app.model.items)
   app.view.head.render()
   
