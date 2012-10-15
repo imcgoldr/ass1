@@ -48,5 +48,21 @@ span.delete {
     left top,
     color-stop(0.18, rgb(173,0,0)),
     color-stop(0.57, rgb(250,120,120))
+  )
+}
+
+span.details {
+  font-size: 8pt;
+  float: right;
+  border: 1px solid #900;
+  border-radius: 5px;
+  padding: 5px;
+  color: white;
+  background: -webkit-gradient(
+    linear,
+    left bottom,
+    left top,
+    color-stop(0.18, rgb(0,173,0)),
+    color-stop(0.57, rgb(120,250,120))
   );
 }

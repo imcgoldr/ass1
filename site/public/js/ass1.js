@@ -1,3 +1,14 @@
+/*
+TODO:
+
+- Add login
+- Add location
+- Add server
+
+- Get rid of ownerId global
+
+*/
+
 function pd( func ) {
   return function( event ) {
     event.preventDefault()
@@ -31,9 +42,10 @@ var bb = {
 
 bb.init = function() {
 
-  console.log('start init')
   var saveon = false
   var swipeon = false
+  var toplevel = true
+  var ownerId = 0
   
   var scrollContent = {
     scroll: function() {
@@ -74,6 +86,7 @@ bb.init = function() {
 	  'tap #gosettings': 'showSettings',
 	  'tap #add': 'addItem',
 	  'tap #cancel': 'cancelItem',
+	  'tap #back': 'showTopLevel',
 	  // touchend added for Android
 	  'touchend #save': 'saveItem',
 	  // click for now so that desktop works, but needs to be tested for Apple (also applies to other view events)
@@ -92,7 +105,8 @@ bb.init = function() {
 	    settings: self.$el.find('#gosettings'),
 	    title: self.$el.find('#maintitle'),
 		add: self.$el.find('#add'),
-		cancel: self.$el.find('#cancel')
+		cancel: self.$el.find('#cancel'),
+		back: self.$el.find('#back')
       }
 	  self.setElement("div[data-role='content']")
 	  self.elements.newitem = self.$el.find('#newitem')
@@ -104,9 +118,12 @@ bb.init = function() {
 	  self.elements.add.hide()
 	  self.elements.cancel.hide()
 
-	  app.model.state.on('change:header_state',self.render)
+	  // TODO: With LocalStorage View.Head rendering is not efficient when we switch between lists, for every element in the list being loaded
+	  // head is rerendered (i.e. wasteful).
+	  // When plugin the server see if we can raise & listen for a different event when the model list is loaded
 	  self.items.on('add',self.render)
 	  self.items.on('remove',self.render)	  
+	  app.model.state.on('change',self.render)
 
 	  self.tm = {
         heading: _.template( self.elements.title.html() )
@@ -118,19 +135,27 @@ bb.init = function() {
 	  console.log('view.Head:render:begin')
 	  var self = this
 	  
-	  var loaded = 'loaded' == app.model.state.get('header_state')
+	  var loaded = 'loaded' == app.model.state.get('items_state')
 	  self.elements.title.html( self.tm.heading( {title: loaded ? 'To Do: '+self.items.length+' Items' : 'To Do: Loading...'} ))
-	  // Handle display of Header items (inc new item).  Header view renders when Items collection is changed.
+	  // Handle display of Header items based on flags
 	  if (loaded) {
-	    if (!saveon && !swipeon) {
-	      self.elements.settings.show()
-	      self.elements.add.show()
-	      self.elements.cancel.hide()
-		}
-		else{
+	    if (saveon || swipeon) {
 	      self.elements.settings.hide()
 	      self.elements.add.hide()
+		  self.elements.back.hide()
 	      self.elements.cancel.show()
+		}
+		else {
+	      self.elements.add.show()
+	      self.elements.cancel.hide()
+		  if (toplevel) {
+		    self.elements.back.hide()
+		    self.elements.settings.show()
+		  }
+		  else {
+		    self.elements.back.show()
+		    self.elements.settings.hide()
+		  }
 		}
 		if (saveon) {
           self.elements.newitem.slideDown()
@@ -139,7 +164,16 @@ bb.init = function() {
 	      self.elements.text.val('').blur()
           self.elements.newitem.slideUp()
 		}
-		if (!swipeon) {
+		if (toplevel) {
+	      $('.details').show()
+		}
+		else {
+	      $('.details').hide()
+		}
+		if (swipeon) {
+	      $('.details').hide()
+		}
+		else {
 	      $('.delete').hide()
 		}
 	  }
@@ -196,14 +230,31 @@ bb.init = function() {
        return
       }
 	  saveon = false
-	  self.items.additem(self.elements.text.val())
+	  // For now OwnerId is maintained in a global variable, should this be a tag in the head?
+	  self.items.additem(self.elements.text.val(), ownerId)
 	  
 	  console.log('view.Head:saveItem:end')
+	  return false
+    },
+	
+	showTopLevel: function() {
+	  console.log('view.Head:showTopLevel:begin')
+	  var self = this
+	  
+	  toplevel = true
+	  ownerId = 0
+      // TODO: repopulate Items with ownerId=0
+	  console.log('repopulating with items having ownerId = 0')
+	  app.model.items.reload(ownerId)
+	  app.view.head.render()
+	  app.view.list.render()
+	  
+	  console.log('view.Head:showTopLevel:end')
 	  return false
     }
   }))
 
-bb.view.Item = Backbone.View.extend(_.extend({
+  bb.view.Item = Backbone.View.extend(_.extend({
 	events: {
 	  'touchend .delete': 'deleteItem',
 	  'click .delete': 'deleteItem',
@@ -211,13 +262,14 @@ bb.view.Item = Backbone.View.extend(_.extend({
 	  'click .check' : 'tapItem',
 	  'touchend .text' : 'tapItem',
 	  'click .text' : 'tapItem',
-	  'swipe .item' : 'swipeItem'
+	  'swipe .item' : 'swipeItem',
+	  'touchend .details': 'showDetails',
+	  'click .details': 'showDetails'
     },
 	initialize: function(){
 	  console.log('view.Item:initialize:begin')
 	  var self = this
 	  _.bindAll(self)
-
 	  self.render()
 	  console.log('view.Item:initialize:end')
 	},
@@ -229,14 +281,20 @@ bb.view.Item = Backbone.View.extend(_.extend({
 	  var html = self.tm.item( self.model.toJSON() )
 	  self.$el.append(html)
 	  app.markitem(self.$el, self.model.attributes.check)
-	  
-	  // Need to manually set the theme of each <li> as it is added, based on user setting.
+	  // Need to manually set the theme of each <li> as it is added, based on user setting, since template uses default 'a'
 	  var oldTheme = 'a'
 	  var newTheme = app.model.settings.getTheme()
 	  app.updateTheme(self.$el, oldTheme, newTheme)
 	  self.$el.find('*').each(function() {
 		app.updateTheme($(this), oldTheme, newTheme);
 	  });
+	  // Show details buton only if we are at toplevel
+	  if (toplevel) {
+	    self.$el.find('.details').show()
+	  }
+	  else {
+	    self.$el.find('.details').hide()
+	  }
   	  console.log('view.Item:render:end')
 	},
 	
@@ -247,8 +305,8 @@ bb.view.Item = Backbone.View.extend(_.extend({
 	  // uses similar pattern as self.setElement("div[data-role='header']") for <div data-role="header" data-position="fixed">
 	  console.log('deleting item with selector '+"li[id='" + self.model.attributes.id + "']")
 	  self.setElement("li[id='" + self.model.attributes.id + "']")
-	  // According to Backbonejs.org destroy() bubbles up through collections, view.Head now listening for 'remove' from model.Items
 	  swipeon = false
+	  // TODO: When we switch to server do we need to do anything specific in relation to deletion of children?  Or will server handle it?
 	  self.model.destroy()
 	  self.remove()
 	  console.log('view.Item:deleteItem:end')
@@ -279,17 +337,36 @@ bb.view.Item = Backbone.View.extend(_.extend({
 	    console.log('swiping on item with selector '+"li[id='" + self.model.attributes.id + "']")
 	    swipeon = true
 	    self.setElement("li[id='" + self.model.attributes.id + "']")
-	    self.elements = {
-	      delbtn: self.$el.find('span.delete')
-	    }
-		self.elements.delbtn.show()
+		self.$el.find('span.delete').show()
       }
 	  else {
 	    console.log('swiping off item with selector '+"li[id='" + self.model.attributes.id + "']")
 	    swipeon = false
 	  }
+	  // render header to set buttons
 	  app.view.head.render()
 	  console.log('view.Item:swipeItem:end')
+	  return false
+	},
+	
+	showDetails: function() {
+	  console.log('view.Item:showDetails:begin')
+	  var self = this
+	  
+	  toplevel = false
+      // TODO: repopulate Items with ownerId
+	  console.log('repopulating with items having ownerId = '+self.model.attributes.id)
+	  ownerId = self.model.attributes.id
+	  app.model.items.reload(ownerId)
+	  // TODO: This aint good since we are repopulating view.list because it has too many and 
+	  // view.head multiple times
+	  // need to refresh list since it is listening for additions, at this point View.List will contain 2* sets of items, parent and children
+	  // View.Head has already been rerendered since it is listening for additions too, unless child list is
+	  // empty which means we need to render
+	  app.view.head.render()
+	  app.view.list.render()
+
+	  console.log('view.Item:showDetails:end')
 	  return false
 	}
 	
@@ -309,9 +386,9 @@ bb.view.Item = Backbone.View.extend(_.extend({
       _.bindAll(self)
 
       self.setElement('#list')
-	  self.count = 0
 	  self.items = items
 	  self.items.on('add', self.appenditem)
+
 	  console.log('view.List:initialize:end')
     },
 
@@ -320,9 +397,10 @@ bb.view.Item = Backbone.View.extend(_.extend({
       var self = this
 
       self.$el.empty()
-      self.items.each( function(item) {
-        self.appenditem(item)
+	  self.items.each( function(item) {
+		self.appenditem(item)
       })
+	  
 	  console.log('view.List:render:end')
     },
 	
@@ -331,7 +409,6 @@ bb.view.Item = Backbone.View.extend(_.extend({
       var self = this
   
       var itemview = new bb.view.Item({ model: item })
-      //self.$el.append( itemview.$el.html() )      
 	  self.$el.append(itemview.el)
 	  // TODO: Why does this scroll seem to block the Android keyboard?
 	  //self.scroll()
@@ -425,7 +502,7 @@ bb.view.Item = Backbone.View.extend(_.extend({
 	  id: '',
 	  check: false,
 	  text:'',
-	  del:'Delete'
+	  ownerId: 0
 	},
 	
 	initialize: function(){
@@ -455,27 +532,38 @@ bb.view.Item = Backbone.View.extend(_.extend({
 	  var self = this
 	  _.bindAll(self)
 
-	  self.count = 0
-	  // when collection is reset set the count correctly, I guess when it's refreshed from localstorage
-	  self.on('reset', function() {self.count = self.length})
 	  console.log('model.Items:initialize:end')
 	},
 
-    additem: function(text){
+    additem: function(text, ownId){
 	  console.log('model.Items:additem:begin')
       var self = this
 	  
 	  var id = new Date().getTime();
-      var item = new bb.model.Item({id:id, text:text})
+      var item = new bb.model.Item({id:id, text:text, ownerId: ownId})
       self.add(item)
-      self.count++
 	  item.save()
 	  console.log('model.Items:additem:end')
-    }	  
+    },
+	
+	reload: function(id){
+	  var self = this
+	  var itms = []
+	  self.fetch()
+	  for (i=0; i<self.length;i++){
+	    itms[i] = self.at(i)
+	  }
+	  self.reset()
+	  for (i=0; i<itms.length;i++){
+	    if (itms[i].attributes.ownerId == id) {
+		  self.add(itms[i])
+		}
+	  }
+	}
   }))
 
   bb.model.State = Backbone.Model.extend(_.extend({
-    defaults: { header_state:'loading'	}
+    defaults: { items_state:'loading'	}
   }))
 
   bb.model.Settings = Backbone.Model.extend(_.extend({
@@ -559,22 +647,28 @@ app.init = function() {
   app.view.head.render()
   
   app.view.list = new bb.view.List(app.model.items)
+  app.view.list.render()
   
   app.view.settings = new bb.view.Settings(app.model.settings)
   app.view.settings.render()
 
+  /*
   app.model.items.fetch({
     success: function() {
 	  setTimeout( 
 	    function() {
-	      app.model.state.set({header_state:'loaded'})
-	      app.view.list.render()
+	      app.model.state.set({items_state:'loaded'})
 	    },
 		500)
 	}
   })
-  
-  
+  */
+  setTimeout( 
+	    function() {
+		  app.model.items.reload(0)
+	      app.model.state.set({items_state:'loaded'})
+	    },
+		500)
   
   console.log('end init')
 }
