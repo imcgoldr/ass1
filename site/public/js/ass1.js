@@ -1,9 +1,13 @@
 /*
 TODO:
 
-- Add login
+- Don't send name/pw in url on login, but I'm fetching so how can I control this?
+- Allow logout
 - Add location
 - Get rid of ownerId global and change it to a string(no need?)
+- Get child lists to have parent's name in title
+- Deploy on AWS
+- Bootstrap users
 
 */
 
@@ -44,6 +48,7 @@ bb.init = function() {
   var swipeon = false
   var toplevel = true
   var ownerId = 0
+  var loggedIn = false
   
   var scrollContent = {
     scroll: function() {
@@ -67,15 +72,25 @@ bb.init = function() {
 	},
 	showList : function() {
 		console.log('myRouter:doMain')
-		$('div#settings').hide();
-		$('div#welcome').hide();
-		$('div#main').show();
+		if (loggedIn) {
+		  $('div#settings').hide();
+		  $('div#welcome').hide();
+		  $('div#main').show();
+		}
+		else {
+		  bb.router.navigate('welcome', {trigger: true})
+		}
 	},
 	showSettings : function() {
 		console.log('myRouter:showSettings')
-		$('div#main').hide();
-		$('div#welcome').hide();
-		$('div#settings').show();
+		if (loggedIn) {
+		  $('div#main').hide();
+		  $('div#welcome').hide();
+		  $('div#settings').show();
+		}
+		else{
+		  bb.router.navigate('welcome', {trigger: true})
+		}
 	},
 	welcome : function() {
 		console.log('myRouter:main')
@@ -190,7 +205,7 @@ bb.init = function() {
     showSettings: function() {
 	  console.log('view.Head:showSettings:begin')
 	  var self = this
-
+      app.view.settings.render()
 	  bb.router.navigate('settings', {trigger: true});
 	  console.log('view.Head:showSettings:end')
 	  return false
@@ -238,7 +253,7 @@ bb.init = function() {
       }
 	  saveon = false
 	  // TODO: For now OwnerId is maintained in a global variable, should this be a tag in the head?
-	  self.items.additem(self.elements.text.val(), ownerId)
+	  self.items.additem(self.elements.text.val(), ownerId, app.model.user.id)
 	  
 	  console.log('view.Head:saveItem:end')
 	  return false
@@ -253,6 +268,7 @@ bb.init = function() {
 	  console.log('repopulating with items having ownerId = 0')
 	  // view.header and view.list rerender on model.items.reset
 	  app.model.items.fetch({
+	    data: {userId: app.model.user.id},
         success: function() {console.log('items loaded for mainlist')}
       })
 	  
@@ -313,8 +329,7 @@ bb.init = function() {
 	  console.log('deleting item with selector '+"li[id='" + self.model.id + "']")
 	  self.setElement("li[id='" + self.model.id + "']")
 	  swipeon = false
-	  // TODO: When we switch to server do we need to do anything specific in relation to deletion of children?  
-	  // Or will server code handle it?  Let the server handle it, but only when I add in the DB
+	  // Server handles deletion of any subordinate items
 	  self.model.destroy()
 	  self.remove()
 	  console.log('view.Item:deleteItem:end')
@@ -366,7 +381,7 @@ bb.init = function() {
 	  ownerId = self.model.id
 	  // view.header and view.list rerender on model.items.reset
 	  app.model.items.fetch({
-	    data : {ownerId:ownerId},
+	    data : {userId: app.model.user.id, ownerId:ownerId},
         success: function() {console.log('items loaded for sublist')}
       })
 
@@ -453,6 +468,7 @@ bb.init = function() {
 	  self.tm = {
         heading: _.template( self.elements.title.html() )
       }
+	  self.render()
 	  
 	  console.log('view.Settings:initialize:end')
     },
@@ -513,7 +529,7 @@ bb.init = function() {
 	events: {
 	  'tap #login': 'login'
     },
-    initialize: function() {
+    initialize: function(user) {
 	  console.log('view.Welcome:initialize:begin')
       var self = this
       _.bindAll(self)
@@ -527,6 +543,7 @@ bb.init = function() {
 	  self.tm = {
         heading: _.template( self.elements.title.html() )
       }
+	  self.user = user
 	  console.log('view.Welcome:initialize:end')
     },
 	
@@ -542,7 +559,24 @@ bb.init = function() {
 	  console.log('view.Welcome:login:begin')
 	  var self = this
 	  
-	  bb.router.navigate('main', {trigger: true});
+	  app.model.user.fetch({
+	    data: {user:self.elements.user.val(), pw:self.elements.pw.val()},
+        success: function() {
+	      console.log('user verified')
+		  loggedIn = true
+		  app.model.items.fetch({
+		    data: {userId: app.model.user.id},
+            success: function() {
+			  console.log('items loaded on login')
+			  app.model.state.set({items_state:'loaded'})
+			}
+          })
+          bb.router.navigate('main', {trigger: true})
+	     },
+		 error: function() {
+		   self.elements.pw.val('')
+		 }
+	  })
 	  console.log('view.Welcome:login:end')
 	  return false
     }
@@ -552,7 +586,8 @@ bb.init = function() {
     defaults: {
 	  check: false,
 	  text:'',
-	  ownerId: 0
+	  ownerId: 0,
+	  userId: 0
 	},
 	
 	initialize: function(){
@@ -574,8 +609,7 @@ bb.init = function() {
 
   bb.model.Items = Backbone.Collection.extend(_.extend({
     model: bb.model.Item,
-	//localStorage: new Store("items"),
-	url: '/api/rest/todo',
+	url: '/api/todo',
 
 	initialize: function(){
 	  console.log('model.Items:initialize:begin')
@@ -584,29 +618,14 @@ bb.init = function() {
 	  console.log('model.Items:initialize:end')
 	},
 
-    additem: function(text, ownId){
+    additem: function(text, ownId, usrId){
 	  console.log('model.Items:additem:begin')
       var self = this
-      var item = new bb.model.Item({text:text, ownerId: ownId})
+      var item = new bb.model.Item({text:text, ownerId: ownId, userId: usrId})
       self.add(item)
 	  item.save()
 	  console.log('model.Items:additem:end')
-    },
-	
-	reload: function(id){
-	  var self = this
-	  var itms = []
-	  self.fetch()
-	  for (i=0; i<self.length;i++){
-	    itms[i] = self.at(i)
-	  }
-	  self.reset()
-	  for (i=0; i<itms.length;i++){
-	    if (itms[i].attributes.ownerId == id) {
-		  self.add(itms[i])
-		}
-	  }
-	}
+    }
   }))
 
   bb.model.State = Backbone.Model.extend(_.extend({
@@ -644,6 +663,20 @@ bb.init = function() {
 	}
   }))
 
+  bb.model.User = Backbone.Model.extend(_.extend({
+    url: '/api/user',
+	defaults: {
+	  user: '',
+	  pw: ''
+	},
+	
+	initialize: function(){
+	  console.log('model.User:initialize:begin')
+	  var self = this
+	  _.bindAll(self)
+	  console.log('model.User:initialize:end')
+	}
+  }))
 }
 
 app.init_browser = function() {
@@ -689,35 +722,14 @@ app.init = function() {
   app.model.items = new bb.model.Items()
   app.model.state = new bb.model.State()
   app.model.settings = new bb.model.Settings()
+  app.model.user = new bb.model.User()
   
-  app.view.welcome = new bb.view.Welcome()
+  app.view.welcome = new bb.view.Welcome(app.model.user)
   app.view.welcome.render()
 
   app.view.head = new bb.view.Head(app.model.items)
-  app.view.head.render()
-  
   app.view.list = new bb.view.List(app.model.items)
-  app.view.list.render()
-  
   app.view.settings = new bb.view.Settings(app.model.settings)
-  app.view.settings.render()
-
-  app.model.items.fetch({
-    success: function() {
-	  console.log('items loaded')
-      app.model.state.set({items_state:'loaded'})
-	}})
-  /*
-  app.model.items.fetch({
-    success: function() {
-	  setTimeout( 
-	    function() {
-	      app.model.state.set({items_state:'loaded'})
-	    },
-		500)
-	}
-  })
-  */
   console.log('end init')
 }
 

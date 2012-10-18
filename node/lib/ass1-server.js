@@ -37,12 +37,13 @@ function init() {
     app.get('/api/echo', api.echo)
     app.post('/api/echo', api.echo)
 	
-    app.post('/api/rest/todo',    api.rest.create)
-    app.get('/api/rest/todo',     api.rest.list)
-    app.del('/api/rest/todo/:id', api.rest.del)
-	// These 2 currently notused:
-    app.get('/api/rest/todo/:id', api.rest.read)
-    app.put('/api/rest/todo/:id', api.rest.update)
+    app.get('/api/todo',     api.todo.list)
+    app.post('/api/todo',    api.todo.create)
+    app.put('/api/todo/:id', api.todo.update)
+    app.del('/api/todo/:id', api.todo.del)
+    app.get('/api/user', api.user.read)
+	// Singe todo read not currently used:
+    app.get('/api/todo/:id', api.todo.read)
 
   })
   server.use(router)

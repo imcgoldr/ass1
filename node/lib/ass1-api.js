@@ -7,6 +7,7 @@ var mongodb = common.mongodb
 
 
 var todocoll = null
+var usercoll = null
 
 var util = {}
 
@@ -44,7 +45,7 @@ exports.echo = function( req, res ) {
 }
 
 
-exports.rest = {
+exports.todo = {
 
   create: function( req, res ) {
     var input = req.body
@@ -56,6 +57,7 @@ exports.rest = {
     // Added check and ownerId
     var todo = {
       id: uuid.v4(),
+	  userId: input.userId,
 	  check: false,
       text: input.text,
       ownerId: input.ownerId,
@@ -98,7 +100,7 @@ exports.rest = {
 	if (input.ownerId) {
 	  ownerId = input.ownerId
 	}
-    var query   = {ownerId:ownerId}
+    var query   = {userId:input.userId, ownerId:ownerId}
 
     todocoll.find( query, options, res.err$( function( cursor ) {
       cursor.toArray( res.err$( function( docs ) {
@@ -121,7 +123,7 @@ exports.rest = {
     }
 
     var query = util.fixid( {id:id} )
-    todocoll.update( query, {$set:{text:input.text}}, res.err$( function( count ) {
+    todocoll.update( query, {$set:{text:input.text, check:input.check}}, res.err$( function( count ) {
       if( 0 < count ) {
         var output = util.fixid( doc )
         res.sendjson$( output )
@@ -146,6 +148,97 @@ exports.rest = {
 
 }
 
+exports.user = {
+
+  create: function( req, res ) {
+    var input = req.body
+    
+    if( !util.validate(input) ) {
+      return res.send$(400, 'invalid')
+    }
+
+    var user = {
+	  id: uuid.v4(),
+      user: input.user,
+	  pw:input.pw,
+	  created: new Date().getTime()
+    }
+
+    usercoll.insert(user, res.err$(function( docs ){
+      var output = util.fixid( docs[0] )
+      res.sendjson$( output )
+    }))
+  },
+
+
+  read: function( req, res ) {
+    var input = req.query
+
+	var query = {$and:[{user:input.user}, {pw:input.pw}]}
+    usercoll.findOne( query, res.err$( function( doc ) {
+      if( doc ) {
+        var output = util.fixid( doc )
+        res.sendjson$( output )
+      }
+      else {
+        res.send$(404,'not found')
+      }
+    }))
+  },
+
+
+  list: function( req, res ) {
+    var input = req.query
+    var output = []
+
+    var options = {sort:[['created','desc']]}
+
+    var query   = {}
+
+    usercoll.find( query, options, res.err$( function( cursor ) {
+      cursor.toArray( res.err$( function( docs ) {
+        output = docs
+        output.forEach(function(item){
+          util.fixid(item)
+        })
+        res.sendjson$( output )
+      }))
+    }))
+  },
+
+
+  update: function( req, res ) {
+    var id    = req.params.id
+    var input = req.body
+    
+    if( !util.validate(input) ) {
+      return res.send$(400, 'invalid')
+    }
+
+    var query = util.fixid( {id:id} )
+    usercoll.update( query, {$set:{pw:input.pw}}, res.err$( function( count ) {
+      if( 0 < count ) {
+        var output = util.fixid( doc )
+        res.sendjson$( output )
+      }
+      else {
+        console.log('404')
+        res.send$(404,'not found')
+      }
+    }))
+  },
+
+
+  del: function( req, res ) {
+    var input = req.params
+    var query = {user:input.user}
+    usercoll.remove( query, res.err$( function() {
+      var output = {}
+      res.sendjson$( output )
+    }))
+  }
+
+}
 
 
 exports.connect = function(options,callback) {
@@ -159,5 +252,10 @@ exports.connect = function(options,callback) {
       todocoll = collection
       callback()
     })
+    client.collection( 'user', function( err, collection ) {
+      if( err ) return callback(err);
+      usercoll = collection
+      callback()
+   })
   })
 }
