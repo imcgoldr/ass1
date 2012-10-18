@@ -3,9 +3,7 @@ TODO:
 
 - Add login
 - Add location
-- Add server
-
-- Get rid of ownerId global
+- Get rid of ownerId global and change it to a string(no need?)
 
 */
 
@@ -127,11 +125,11 @@ bb.init = function() {
 	  self.elements.add.hide()
 	  self.elements.cancel.hide()
 
-	  // TODO: With LocalStorage View.Head rendering is not efficient when we switch between lists, for every element in the list being loaded
-	  // head is rerendered (i.e. wasteful).
-	  // When plugin the server see if we can raise & listen for a different event when the model list is loaded
+	  // Need to rerender head when items are added or removed, also if reloaded 
 	  self.items.on('add',self.render)
-	  self.items.on('remove',self.render)	  
+	  self.items.on('remove',self.render)
+	  self.items.on('reset',self.render)
+      // Strictly speaking we don't really need this rerender on state change but leave it in for loading for now 
 	  app.model.state.on('change',self.render)
 
 	  self.tm = {
@@ -239,7 +237,7 @@ bb.init = function() {
        return
       }
 	  saveon = false
-	  // For now OwnerId is maintained in a global variable, should this be a tag in the head?
+	  // TODO: For now OwnerId is maintained in a global variable, should this be a tag in the head?
 	  self.items.additem(self.elements.text.val(), ownerId)
 	  
 	  console.log('view.Head:saveItem:end')
@@ -252,11 +250,11 @@ bb.init = function() {
 	  
 	  toplevel = true
 	  ownerId = 0
-      // TODO: repopulate Items with ownerId=0
 	  console.log('repopulating with items having ownerId = 0')
-	  app.model.items.reload(ownerId)
-	  app.view.head.render()
-	  app.view.list.render()
+	  // view.header and view.list rerender on model.items.reset
+	  app.model.items.fetch({
+        success: function() {console.log('items loaded for mainlist')}
+      })
 	  
 	  console.log('view.Head:showTopLevel:end')
 	  return false
@@ -286,7 +284,7 @@ bb.init = function() {
 	render: function() {
 	  console.log('view.Item:render:begin')
 	  var self = this
-	  
+	  self.model.attributes.id = self.model.id
 	  var html = self.tm.item( self.model.toJSON() )
 	  self.$el.append(html)
 	  app.markitem(self.$el, self.model.attributes.check)
@@ -312,10 +310,11 @@ bb.init = function() {
 	  var self = this
 	  // need to associate with the correct element, use li id
 	  // uses similar pattern as self.setElement("div[data-role='header']") for <div data-role="header" data-position="fixed">
-	  console.log('deleting item with selector '+"li[id='" + self.model.attributes.id + "']")
-	  self.setElement("li[id='" + self.model.attributes.id + "']")
+	  console.log('deleting item with selector '+"li[id='" + self.model.id + "']")
+	  self.setElement("li[id='" + self.model.id + "']")
 	  swipeon = false
-	  // TODO: When we switch to server do we need to do anything specific in relation to deletion of children?  Or will server handle it?
+	  // TODO: When we switch to server do we need to do anything specific in relation to deletion of children?  
+	  // Or will server code handle it?  Let the server handle it, but only when I add in the DB
 	  self.model.destroy()
 	  self.remove()
 	  console.log('view.Item:deleteItem:end')
@@ -327,8 +326,8 @@ bb.init = function() {
 	  var self = this
 	  
 	  if (!swipeon) {
-	    console.log('toggling item with selector '+"li[id='" + self.model.attributes.id + "']")
-	    self.setElement("li[id='" + self.model.attributes.id + "']")
+	    console.log('toggling item with selector '+"li[id='" + self.model.id + "']")
+	    self.setElement("li[id='" + self.model.id + "']")
 	    // Toggle item checked value (and save)
 	    self.model.toggleCheck()
 	    app.markitem(self.$el, self.model.attributes.check)
@@ -343,13 +342,13 @@ bb.init = function() {
 	  var self = this
 	  
 	  if (!swipeon) {
-	    console.log('swiping on item with selector '+"li[id='" + self.model.attributes.id + "']")
+	    console.log('swiping on item with selector '+"li[id='" + self.model.id + "']")
 	    swipeon = true
-	    self.setElement("li[id='" + self.model.attributes.id + "']")
+	    self.setElement("li[id='" + self.model.id + "']")
 		self.$el.find('span.delete').show()
       }
 	  else {
-	    console.log('swiping off item with selector '+"li[id='" + self.model.attributes.id + "']")
+	    console.log('swiping off item with selector '+"li[id='" + self.model.id + "']")
 	    swipeon = false
 	  }
 	  // render header to set buttons
@@ -363,17 +362,13 @@ bb.init = function() {
 	  var self = this
 	  
 	  toplevel = false
-      // TODO: repopulate Items with ownerId
-	  console.log('repopulating with items having ownerId = '+self.model.attributes.id)
-	  ownerId = self.model.attributes.id
-	  app.model.items.reload(ownerId)
-	  // TODO: This aint good since we are repopulating view.list because it has too many and 
-	  // view.head multiple times
-	  // need to refresh list since it is listening for additions, at this point View.List will contain 2* sets of items, parent and children
-	  // View.Head has already been rerendered since it is listening for additions too, unless child list is
-	  // empty which means we need to render
-	  app.view.head.render()
-	  app.view.list.render()
+	  console.log('repopulating with items having ownerId = '+self.model.id)
+	  ownerId = self.model.id
+	  // view.header and view.list rerender on model.items.reset
+	  app.model.items.fetch({
+	    data : {ownerId:ownerId},
+        success: function() {console.log('items loaded for sublist')}
+      })
 
 	  console.log('view.Item:showDetails:end')
 	  return false
@@ -396,7 +391,15 @@ bb.init = function() {
 
       self.setElement('#list')
 	  self.items = items
-	  self.items.on('add', self.appenditem)
+	  /* Items are either added by user (triggering 'add' on model.items) so just append to list view...
+	     however there was a problem that items are added to view.list before being created on the server
+	     so there was no item.id, which is needed for the <li> id attribute to allow for swipe and deletion etc
+		 => solution is to listen for sync which fires after item has been saved which is the step
+		 after it has been added to the collection
+	  */
+	  self.items.on('sync', self.appenditem)
+	  // ... or loaded from server (triggering 'reset' on model.items) so refresh list view
+	  self.items.on('reset', self.render)
 
 	  console.log('view.List:initialize:end')
     },
@@ -468,7 +471,7 @@ bb.init = function() {
 	  console.log('view.Settings:cancelSettings:begin')
 	  var self = this
 	  
-	  bb.router.navigate('', {trigger: true});
+	  bb.router.navigate('main', {trigger: true});
 	  console.log('view.Settings:cancelSettings:end')
 	  return false
     },
@@ -547,7 +550,6 @@ bb.init = function() {
 
   bb.model.Item = Backbone.Model.extend(_.extend({
     defaults: {
-	  id: '',
 	  check: false,
 	  text:'',
 	  ownerId: 0
@@ -563,7 +565,6 @@ bb.init = function() {
 	toggleCheck: function(){
 	  console.log('model.Item:toggleCheck:begin')
 	  var self = this
-	  
 	  // use backbone model get/set
 	  self.set({check: !self.get('check')})
 	  self.save()
@@ -573,22 +574,20 @@ bb.init = function() {
 
   bb.model.Items = Backbone.Collection.extend(_.extend({
     model: bb.model.Item,
-	localStorage: new Store("items"),
+	//localStorage: new Store("items"),
+	url: '/api/rest/todo',
 
 	initialize: function(){
 	  console.log('model.Items:initialize:begin')
 	  var self = this
 	  _.bindAll(self)
-
 	  console.log('model.Items:initialize:end')
 	},
 
     additem: function(text, ownId){
 	  console.log('model.Items:additem:begin')
       var self = this
-	  
-	  var id = new Date().getTime();
-      var item = new bb.model.Item({id:id, text:text, ownerId: ownId})
+      var item = new bb.model.Item({text:text, ownerId: ownId})
       self.add(item)
 	  item.save()
 	  console.log('model.Items:additem:end')
@@ -703,6 +702,11 @@ app.init = function() {
   app.view.settings = new bb.view.Settings(app.model.settings)
   app.view.settings.render()
 
+  app.model.items.fetch({
+    success: function() {
+	  console.log('items loaded')
+      app.model.state.set({items_state:'loaded'})
+	}})
   /*
   app.model.items.fetch({
     success: function() {
@@ -714,13 +718,6 @@ app.init = function() {
 	}
   })
   */
-  setTimeout( 
-	    function() {
-		  app.model.items.reload(0)
-	      app.model.state.set({items_state:'loaded'})
-	    },
-		500)
-  
   console.log('end init')
 }
 
