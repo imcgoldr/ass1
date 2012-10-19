@@ -1,13 +1,14 @@
 /*
 TODO:
 
-- Don't send name/pw in url on login, but I'm fetching so how can I control this?
-- Allow logout
 - Add location
 - Get rid of ownerId global and change it to a string(no need?)
 - Get child lists to have parent's name in title
 - Deploy on AWS
-- Bootstrap users
+
+- Don't send name/pw in url on login, but I'm fetching so how can I control this?
+- Allow logout, do I need to... button limit in header
+- Bootstrap users... do we need to or assume they are setup?
 
 */
 
@@ -49,6 +50,7 @@ bb.init = function() {
   var toplevel = true
   var ownerId = 0
   var loggedIn = false
+  var listName = 'To Do: '
   
   var scrollContent = {
     scroll: function() {
@@ -139,12 +141,12 @@ bb.init = function() {
 	  self.elements.settings.hide()
 	  self.elements.add.hide()
 	  self.elements.cancel.hide()
+	  self.elements.back.hide()
 
 	  // Need to rerender head when items are added or removed, also if reloaded 
 	  self.items.on('add',self.render)
 	  self.items.on('remove',self.render)
 	  self.items.on('reset',self.render)
-      // Strictly speaking we don't really need this rerender on state change but leave it in for loading for now 
 	  app.model.state.on('change',self.render)
 
 	  self.tm = {
@@ -158,7 +160,7 @@ bb.init = function() {
 	  var self = this
 	  
 	  var loaded = 'loaded' == app.model.state.get('items_state')
-	  self.elements.title.html( self.tm.heading( {title: loaded ? 'To Do: '+self.items.length+' Items' : 'To Do: Loading...'} ))
+	  self.elements.title.html( self.tm.heading( {title: loaded ? listName+self.items.length+' Items' : listName+'Loading...'} ))
 	  // Handle display of Header items based on flags
 	  if (loaded) {
 	    if (saveon || swipeon) {
@@ -198,6 +200,13 @@ bb.init = function() {
 		else {
 	      $('.delete').hide()
 		}
+	  }
+	  else {
+	  	self.elements.settings.hide()
+	    self.elements.add.hide()
+	    self.elements.cancel.hide()
+	    self.elements.back.hide()
+		//app.view.list.render()
 	  }
 	  console.log('view.Head:render:end')
 	},
@@ -267,11 +276,16 @@ bb.init = function() {
 	  ownerId = 0
 	  console.log('repopulating with items having ownerId = 0')
 	  // view.header and view.list rerender on model.items.reset
+	  listName = 'To Do: '
+	  app.model.state.set({items_state:'loading'})
 	  app.model.items.fetch({
-	    data: {userId: app.model.user.id},
-        success: function() {console.log('items loaded for mainlist')}
+	    data : {userId: app.model.user.id},
+        success: function() {
+		  console.log('items loaded for mainlist')
+		  app.model.state.set({items_state:'loaded'})
+		}
       })
-	  
+
 	  console.log('view.Head:showTopLevel:end')
 	  return false
     }
@@ -380,9 +394,14 @@ bb.init = function() {
 	  console.log('repopulating with items having ownerId = '+self.model.id)
 	  ownerId = self.model.id
 	  // view.header and view.list rerender on model.items.reset
+	  listName = self.model.attributes.text+': '
+	  app.model.state.set({items_state:'loading'})
 	  app.model.items.fetch({
 	    data : {userId: app.model.user.id, ownerId:ownerId},
-        success: function() {console.log('items loaded for sublist')}
+        success: function() {
+		  console.log('items loaded for sublist')
+		  app.model.state.set({items_state:'loaded'})
+		}
       })
 
 	  console.log('view.Item:showDetails:end')
@@ -415,6 +434,8 @@ bb.init = function() {
 	  self.items.on('sync', self.appenditem)
 	  // ... or loaded from server (triggering 'reset' on model.items) so refresh list view
 	  self.items.on('reset', self.render)
+	  app.model.state.on('change',self.empty)
+
 
 	  console.log('view.List:initialize:end')
     },
@@ -440,6 +461,15 @@ bb.init = function() {
 	  // TODO: Why does this scroll seem to block the Android keyboard?
 	  //self.scroll()
 	  console.log('view.List:appenditem:end')
+	},
+	
+	empty:function(){
+	  console.log('view.List:empty:begin')
+      var self = this
+      if ('loading' === app.model.state.get('items_state')){
+	    self.$el.empty()
+	  }
+	  console.log('view.List:empty:end')
 	}
   }, 
   
@@ -571,6 +601,8 @@ bb.init = function() {
 			  app.model.state.set({items_state:'loaded'})
 			}
           })
+		  app.view.head.render()
+		  app.view.list.render()
           bb.router.navigate('main', {trigger: true})
 	     },
 		 error: function() {
