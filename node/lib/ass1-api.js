@@ -58,10 +58,13 @@ exports.todo = {
     var todo = {
       id: uuid.v4(),
 	  userId: input.userId,
-	  check: false,
+	  check: input.check,
       text: input.text,
       ownerId: input.ownerId,
-	  created: new Date().getTime()
+	  created: new Date().getTime(),
+	  located: input.located,
+	  latitude: input.latitude,
+	  longitude: input.longitude
     }
 
     todocoll.insert(todo, res.err$(function( docs ){
@@ -121,18 +124,29 @@ exports.todo = {
     if( !util.validate(input) ) {
       return res.send$(400, 'invalid')
     }
-
     var query = util.fixid( {id:id} )
-    todocoll.update( query, {$set:{text:input.text, check:input.check}}, res.err$( function( count ) {
-      if( 0 < count ) {
-        var output = util.fixid( doc )
-        res.sendjson$( output )
-      }
-      else {
-        console.log('404')
-        res.send$(404,'not found')
-      }
-    }))
+    todocoll.findAndModify( 
+	  query, 
+	  [],
+	  {$set:{
+	    text:input.text, 
+		check:input.check, 
+		located: input.located,
+		latitude: input.latitude,
+		longitude: input.longitude}
+	  }, 
+	  {new:true},
+	  res.err$( function(doc) {
+	    if( doc ) {
+          var output = util.fixid( doc )
+          res.sendjson$( output )
+        }
+        else {
+          console.log('404')
+          res.send$(404,'not found')
+        }
+      })
+	)
   },
 
 
@@ -216,6 +230,8 @@ exports.user = {
     }
 
     var query = util.fixid( {id:id} )
+	// TODO: Would change this to use findAndModify if use update was needed, for now leaving it to 
+	// generate spurious 404
     usercoll.update( query, {$set:{pw:input.pw}}, res.err$( function( count ) {
       if( 0 < count ) {
         var output = util.fixid( doc )
@@ -250,12 +266,13 @@ exports.connect = function(options,callback) {
       if( err ) return callback(err);
 
       todocoll = collection
-      callback()
+      //callback()
     })
     client.collection( 'user', function( err, collection ) {
       if( err ) return callback(err);
       usercoll = collection
-      callback()
+      //callback()
    })
   })
+  callback()
 }
