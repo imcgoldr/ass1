@@ -4,6 +4,7 @@ var buffer = exports.buffer = require('buffer')
 exports.connect = require('connect')
 exports.uuid    = require('node-uuid')
 exports.mongodb = require('mongodb')
+exports.memcached = require( 'memcached' )
 
 
 exports.sendjson = function(res,obj){

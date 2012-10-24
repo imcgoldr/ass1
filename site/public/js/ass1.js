@@ -1,12 +1,10 @@
 /*
 TODO:
 
-- add caching
 - test with devices!
 - change text to a link if located and launch map
 - create readme.txt
 
-- verify if server init needs 2* calls to callback
 */
 
 function pd( func ) {
@@ -654,7 +652,7 @@ bb.init = function() {
 	  latitude: null,
 	  longitude: null
 	},
-	
+
 	initialize: function(){
 	  console.log('model.Item:initialize:begin')
 	  var self = this
@@ -696,6 +694,20 @@ bb.init = function() {
       self.add(item)
 	  // When item is added raise custom event so that view.list is appended - see view.List for details
 	  item.save([], {success:function(newitem){ self.trigger('additem',newitem)}})
+	  
+	  /* Simplistic testbed for item caching.  Since this app does not read single todo items from the server
+	     I added this code just to test that items inserted into the cache can be read from cache & DB. 2 scenarios:
+		 (a) Starting with an empty cache & DB, insert 2* new items, on the 2nd insert the 1st item is retrieved 
+		 from the cache successfully
+		 (b) Starting with a populated DB but empty cache, insert 2* new items.  On the 1st insert cache misses
+		 and loads, on 2nd insert cache hits
+	  */
+	  /*
+	  if (self.length > 1){
+	    console.log('fetching '+self.at(0).id)
+	    self.at(0).fetch()
+	  }
+	  */
 	  console.log('model.Items:additem:end')
     }
   }))

@@ -5,6 +5,9 @@ var common = require('./common')
 var uuid    = common.uuid
 var mongodb = common.mongodb
 
+var memcached = new common.memcached(["127.0.0.1:11211"])
+var lifetime = 3600
+
 
 var todocoll = null
 var usercoll = null
@@ -69,26 +72,63 @@ exports.todo = {
 
     todocoll.insert(todo, res.err$(function( docs ){
       var output = util.fixid( docs[0] )
+	    // Add to cache
+	    memcached.set(
+	      output.id,
+	      output,
+	      lifetime,
+	      function(err){
+	        if (err) {
+		      console.error(err)
+		    }
+	      }
+		)
       res.sendjson$( output )
     }))
+	
+		  
   },
 
 
   read: function( req, res ) {
     var input = req.params
-
-    console.log(req.params)
-
-    var query = util.fixid( {id:input.id} )
-    todocoll.findOne( query, res.err$( function( doc ) {
-      if( doc ) {
-        var output = util.fixid( doc )
-        res.sendjson$( output )
-      }
-      else {
-        res.send$(404,'not found')
-      }
-    }))
+	// read from DB only if not in cache, if read from DB place in cache
+	memcached.get(
+	  input.id,
+	  function(err, result){
+	    if (err) {
+		  console.error(err)
+		}
+		else {
+		  if (result) {
+		    console.log(input.id+' found in cache')
+		    res.sendjson$(result)
+		  }
+		  else {
+		    console.log(input.id+' not found in cache, reverting to DB')
+		    var query = util.fixid( {id:input.id} )
+            todocoll.findOne( query, res.err$( function( doc ) {
+              if( doc ) {
+                var output = util.fixid( doc )
+			    memcached.set(
+	              output.id,
+	              output,
+	              lifetime,
+	              function(err){
+	                if (err) {
+		              console.error(err)
+		            }
+	              }
+		        )
+                res.sendjson$( output )
+              }
+              else {
+                res.send$(404,'not found')
+              }
+			}))
+		  }
+		}
+	  })
   },
 
 
@@ -139,6 +179,16 @@ exports.todo = {
 	  res.err$( function(doc) {
 	    if( doc ) {
           var output = util.fixid( doc )
+		  memcached.set(
+	        output.id,
+	        output,
+	        lifetime,
+	        function(err){
+	          if (err) {
+		        console.error(err)
+		      }
+	        }
+		  )
           res.sendjson$( output )
         }
         else {
