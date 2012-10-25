@@ -48,7 +48,7 @@
       <a id="save" data-role="button" data-inline="true" data-icon='plus'>Save</a>
     </div>	
     <ul id="list" data-role="listview">
-      <li id="{{-id}}" class="item ui-li ui-li-static ui-body-a" data-theme="a">
+      <li class="item ui-li ui-li-static ui-body-a" data-theme="a">
 		<span class="check">{{check}}</span>
         <span class="text">{{-text}}</span>
 		<span class="delete">Delete</span>
@@ -74,6 +74,16 @@
 	    <option value="e">Theme E</option>
       </select>
 	</div>
+  </div>
+</div>
+
+<div id="map" data-role="page" data-theme="a">
+  <div data-role="header" data-position="fixed" data-theme="a">
+    <h1 id="maptitle">{{-title}}</h1>
+	<a id="cancelmap" data-icon="back" class="ui-btn-right">Back</a>
+  </div>
+  <div data-role="content" id="mapDisplay">
+    <img id="mapimg" />
   </div>
 </div>
 

@@ -2,7 +2,6 @@
 TODO:
 
 - test with devices!
-- change text to a link if located and launch map
 - create readme.txt
 
 */
@@ -65,13 +64,15 @@ bb.init = function() {
     routes : {
 	  '': 'welcome',
 	  'settings' : 'showSettings',
-	  'main': 'showList'
+	  'main': 'showList',
+	  'map': 'showMap'
 	},
 	showList : function() {
 		console.log('myRouter:doMain')
 		if (loggedIn) {
 		  $('div#settings').hide();
 		  $('div#welcome').hide();
+		  $('div#map').hide();
 		  $('div#main').show();
 		}
 		else {
@@ -83,6 +84,7 @@ bb.init = function() {
 		if (loggedIn) {
 		  $('div#main').hide();
 		  $('div#welcome').hide();
+		  $('div#map').hide();
 		  $('div#settings').show();
 		}
 		else{
@@ -90,10 +92,24 @@ bb.init = function() {
 		}
 	},
 	welcome : function() {
-		console.log('myRouter:main')
+		console.log('myRouter:welcome')
 		$('div#main').hide();
 		$('div#settings').hide();
+		$('div#map').hide();
 		$('div#welcome').show();
+	}
+	,
+	showMap : function() {
+		console.log('myRouter:showMap')
+		if (loggedIn) {
+		  $('div#main').hide();
+		  $('div#welcome').hide();
+		  $('div#settings').hide();
+		  $('div#map').show();
+		}
+		else{
+		  bb.router.navigate('welcome', {trigger: true})
+		}
 	}
   });
   // As per bb documentation need to create a router and call history.start()
@@ -189,7 +205,6 @@ bb.init = function() {
 		else {
 	      $('.details').hide()
 		}
-		$('.located').show()
 		if (swipeon) {
 	      $('.details').hide()
 		}
@@ -222,13 +237,11 @@ bb.init = function() {
 	  saveon = true
 	  self.render()
       self.activateSave()
-	  app.position.located = false
 	  app.position.coords = {longitude:null, latitude:null}
 	  // Grab position
 	  navigator.geolocation.getCurrentPosition(
         function(position){
 	      app.position = position
-		  app.position.located = true
         },
         function(error){
 	      console.log('view.Head:addItem:could not locate position')
@@ -272,7 +285,6 @@ bb.init = function() {
 	    self.elements.text.val(), 
 		ownerId, 
 		app.model.user.id, 
-		app.position.located,
 		app.position.coords.longitude,
 		app.position.coords.latitude)
 	  
@@ -309,8 +321,8 @@ bb.init = function() {
 	  'click .delete': 'deleteItem',
 	  'touchend .check' : 'tapItem',
 	  'click .check' : 'tapItem',
-	  'touchend .text' : 'tapItem',
-	  'click .text' : 'tapItem',
+	  'touchend .text' : 'showMap',
+	  'click .text' : 'showMap',
 	  'swipe .item' : 'swipeItem',
 	  'touchend .details': 'showDetails',
 	  'click .details': 'showDetails'
@@ -350,10 +362,6 @@ bb.init = function() {
 	deleteItem: function() {
 	  console.log('view.Item:deleteItem:begin')
 	  var self = this
-	  // need to associate with the correct element, use li id
-	  // uses similar pattern as self.setElement("div[data-role='header']") for <div data-role="header" data-position="fixed">
-	  console.log('deleting item with selector '+"li[id='" + self.model.id + "']")
-	  self.setElement("li[id='" + self.model.id + "']")
 	  swipeon = false
 	  // Server handles deletion of any subordinate items
 	  self.model.destroy()
@@ -367,8 +375,6 @@ bb.init = function() {
 	  var self = this
 	  
 	  if (!swipeon) {
-	    console.log('toggling item with selector '+"li[id='" + self.model.id + "']")
-	    self.setElement("li[id='" + self.model.id + "']")
 	    // Toggle item checked value (and save)
 	    self.model.toggleCheck()
 	    app.markitem(self.$el, self.model.attributes.check)
@@ -383,13 +389,10 @@ bb.init = function() {
 	  var self = this
 	  
 	  if (!swipeon) {
-	    console.log('swiping on item with selector '+"li[id='" + self.model.id + "']")
 	    swipeon = true
-	    self.setElement("li[id='" + self.model.id + "']")
 		self.$el.find('span.delete').show()
       }
 	  else {
-	    console.log('swiping off item with selector '+"li[id='" + self.model.id + "']")
 	    swipeon = false
 	  }
 	  // render header to set buttons
@@ -418,6 +421,20 @@ bb.init = function() {
 
 	  console.log('view.Item:showDetails:end')
 	  return false
+	},
+	
+   showMap: function() {
+	  console.log('view.Item:showMap:begin')
+	  var self = this
+	  if (self.model.attributes.longitude && self.model.attributes.latitude) {
+		app.view.map.render(self.model.attributes.longitude, self.model.attributes.latitude, self.model.attributes.text)
+	    bb.router.navigate('map', {trigger: true})
+	  }
+	  else {
+        alert('Sorry - no map available for '+self.model.attributes.text)
+	  }
+	  console.log('view.Item:showMap:end')
+	  return false
 	}
 	
   }, {
@@ -437,20 +454,8 @@ bb.init = function() {
 
       self.setElement('#list')
 	  self.items = items
-	  /* Items are either user added (triggering 'add' on model.items) so originally I just append view.list...
-	     however there was a problem that items were added to view.list before being created on the server
-	     so there was no item.id (needed for the <li> id attribute to allow for swipe and deletion etc)
-		 => my original solution was to listen for 'sync' which fires after item has been saved which is the step
-		 after it has been added to the collection so that the id would be present however...
-		 there was a 404 being spuriously generated by the update to model.item.check which was preventing
-		 sync also being raised on such an update... once the spurious 404 was fixed updating model.item.check
-		 was also raising 'sync' and therefore calling appenditem (thus duplicating it in view.list)...
-		 => solution was to raise a custom event on insert into model.item:
-		 ** item.save([], {success:function(newitem){ console.log(newitem); self.trigger('additem',newitem)}}) **
-		 and instead listen for this.  The new item added is then provided
-	  */
-	  //self.items.on('sync', self.appenditem)
-	  self.items.on('additem', self.appenditem)
+	  // Items are either user added (triggering 'add' on model.items) 
+	  self.items.on('add', self.appenditem)
 	  // ... or loaded from server (triggering 'reset' on model.items) so refresh list view
 	  self.items.on('reset', self.render)
 	  app.model.state.on('change',self.empty)
@@ -566,6 +571,11 @@ bb.init = function() {
 	  self.$el.find('*').each(function() {
 		app.updateTheme($(this), oldTheme, newTheme);
 	  });
+	  self.setElement("div[id='map']")
+	  app.updateTheme(self.el, oldTheme, newTheme);
+	  self.$el.find('*').each(function() {
+		app.updateTheme($(this), oldTheme, newTheme);
+	  });
 
 	  console.log('view.Settings:renderTheme:end')
 	  return false
@@ -642,13 +652,57 @@ bb.init = function() {
     }
   }))
 
+  bb.view.Map = Backbone.View.extend(_.extend({
+	events: {
+	  'tap #cancelmap': 'cancelMap'
+    },
+    initialize: function() {
+	  console.log('view.Map:initialize:begin')
+      var self = this
+      _.bindAll(self)
+
+	  self.settings = settings
+
+	  self.setElement("div[id='map']")
+	  self.elements = {
+	    title: self.$el.find('#maptitle'),
+		img: self.$el.find('#mapimg')
+	  }
+	  
+	  self.tm = {
+        heading: _.template( self.elements.title.html() )
+      }
+	  
+	  console.log('view.Map:initialize:end')
+    },
+	
+	render: function(longitude, latitude, text) {
+	  console.log('view.Map:render:begin')
+	  var self = this
+	  
+	  self.elements.title.html( self.tm.heading( {title: 'Map for '+text} ))
+	  self.elements.img.attr('src',  
+        "http://maps.google.com/maps/api/staticmap?sensor=true&center="+latitude+","+longitude+
+        "&zoom=14&size=300x200&markers=color:red|"+latitude+","+longitude)
+	  console.log('view.Map:render:end')
+	},
+
+	cancelMap: function() {
+	  console.log('view.Map:cancelMap:begin')
+	  var self = this
+	  
+	  bb.router.navigate('main', {trigger: true});
+	  console.log('view.Map:cancelMap:end')
+	  return false
+    }
+  }))
+
   bb.model.Item = Backbone.Model.extend(_.extend({
     defaults: {
 	  check: false,
 	  text:'',
 	  ownerId: 0,
 	  userId: 0,
-	  located: false,
 	  latitude: null,
 	  longitude: null
 	},
@@ -681,21 +735,19 @@ bb.init = function() {
 	  console.log('model.Items:initialize:end')
 	},
 
-    additem: function(text, ownerId, userId, located, longitude, latitude){
+    additem: function(text, ownerId, userId, longitude, latitude){
 	  console.log('model.Items:additem:begin')
       var self = this
       var item = new bb.model.Item({
 	    text:text, 
 		ownerId: ownerId, 
 		userId: userId, 
-		located:located, 
 		longitude:longitude,
 		latitude:latitude})
       self.add(item)
-	  // When item is added raise custom event so that view.list is appended - see view.List for details
-	  item.save([], {success:function(newitem){ self.trigger('additem',newitem)}})
+	  item.save()
 	  
-	  /* Simplistic testbed for item caching.  Since this app does not read single todo items from the server
+	  /* Simplistic testbed for item cache.  Since this app does not read single todo items from the server
 	     I added this code just to test that items inserted into the cache can be read from cache & DB. 2 scenarios:
 		 (a) Starting with an empty cache & DB, insert 2* new items, on the 2nd insert the 1st item is retrieved 
 		 from the cache successfully
@@ -815,6 +867,7 @@ app.init = function() {
   app.view.head = new bb.view.Head(app.model.items)
   app.view.list = new bb.view.List(app.model.items)
   app.view.settings = new bb.view.Settings(app.model.settings)
+  app.view.map = new bb.view.Map()
   console.log('end init')
 }
 

@@ -65,7 +65,6 @@ exports.todo = {
       text: input.text,
       ownerId: input.ownerId,
 	  created: new Date().getTime(),
-	  located: input.located,
 	  latitude: input.latitude,
 	  longitude: input.longitude
     }
@@ -171,7 +170,6 @@ exports.todo = {
 	  {$set:{
 	    text:input.text, 
 		check:input.check, 
-		located: input.located,
 		latitude: input.latitude,
 		longitude: input.longitude}
 	  }, 
@@ -202,6 +200,15 @@ exports.todo = {
 
   del: function( req, res ) {
     var input = req.params
+	
+	memcached.delete(
+	  input.id,
+	  function(err, result){
+	    if (err) {
+		  console.error(err)
+		}
+	  }
+	)
     // updated query to include OwnerId
     var query = {$or:[util.fixid( {id:input.id} ), {ownerId:input.id}]}
     todocoll.remove( query, res.err$( function() {
