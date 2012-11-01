@@ -323,12 +323,10 @@ exports.connect = function(options,callback) {
       if( err ) return callback(err);
 
       todocoll = collection
-      //callback()
     })
     client.collection( 'user', function( err, collection ) {
       if( err ) return callback(err);
       usercoll = collection
-      //callback()
    })
   })
   callback()

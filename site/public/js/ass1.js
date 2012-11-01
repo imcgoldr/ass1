@@ -1,11 +1,3 @@
-/*
-TODO:
-
-- test with devices!
-- create readme.txt
-
-*/
-
 function pd( func ) {
   return function( event ) {
     event.preventDefault()
@@ -342,7 +334,8 @@ bb.init = function() {
 	  var html = self.tm.item( self.model.toJSON() )
 	  self.$el.append(html)
 	  app.markitem(self.$el, self.model.attributes.check)
-	  // Need to manually set the theme of each <li> as it is added, based on user setting, since template uses default 'a'
+	  // Need to manually set the theme of each <li> as it is added, based on user setting, 
+	  // since template uses default 'a'
 	  var oldTheme = 'a'
 	  var newTheme = app.model.settings.getTheme()
 	  app.updateTheme(self.$el, oldTheme, newTheme)
