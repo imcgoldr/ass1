@@ -46,7 +46,7 @@ bb.init = function() {
           self.scroller.refresh()
         }
         else {
-          self.scroller = new iScroll( $("div[data-role='content']")[0] )
+		  self.scroller = new iScroll( $('#scroller')[0] )
         }
       },1)
     }
@@ -473,8 +473,7 @@ bb.init = function() {
   
       var itemview = new bb.view.Item({ model: item })
 	  self.$el.append(itemview.el)
-	  // TODO: Why does this scroll seem to block the Android keyboard?
-	  //self.scroll()
+	  self.scroll()
 	  console.log('view.List:appenditem:end')
 	},
 	
