@@ -110,13 +110,13 @@ bb.init = function() {
   
   bb.view.Head = Backbone.View.extend(_.extend({
 	events: {
+      // I had problems getting both iPad and Android to register tap events on the save button
+	  // solution is to define both click and touchend which seems to work OK
 	  'tap #gosettings': 'showSettings',
 	  'tap #add': 'addItem',
 	  'tap #cancel': 'cancelItem',
 	  'tap #back': 'showTopLevel',
-	  // touchend added for Android
 	  'touchend #save': 'saveItem',
-	  // click for now so that desktop works, but needs to be tested for Apple (also applies to other view events)
 	  'click #save': 'saveItem',
 	  'keyup #text': 'activateSave'
     },
@@ -309,6 +309,8 @@ bb.init = function() {
 
   bb.view.Item = Backbone.View.extend(_.extend({
 	events: {
+	  // Similar to the Save button in the Header I had problems getting both iPad and Android to 
+	  // register tap events on the item buttons solution is to define both click and touchend
 	  'touchend .delete': 'deleteItem',
 	  'click .delete': 'deleteItem',
 	  'touchend .check' : 'tapItem',
